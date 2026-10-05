@@ -1,13 +1,27 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-import { SimulationData, Tower, TowerStatus } from '../types/simulation';
+import { SimulationData, Tower, TowerStatus, MultiUserUpdate, MultiUserState } from '../types/simulation';
 
 const TRAIL_MAX = 80;  // keep last N vehicle positions
+
+// Distinct colours for up to 10 simultaneous users
+const USER_COLORS = [
+  '#facc15', // yellow
+  '#f87171', // red
+  '#4ade80', // green
+  '#a78bfa', // purple
+  '#fb923c', // orange
+  '#60a5fa', // sky-blue
+  '#f472b6', // pink
+  '#34d399', // teal
+  '#fbbf24', // amber
+  '#a3e635', // lime
+];
 
 const CENTER_LAT = 13.0827;
 const CENTER_LON = 80.2707;
@@ -114,6 +128,59 @@ function createVehicleIcon(heading: number): L.DivIcon {
   });
 }
 
+function getUserColor(userId: string, idx: number): string {
+  const norm = userId.toUpperCase().replace('_', '-');
+  if (norm.includes('01') || norm === 'U1') return '#facc15'; // yellow/amber
+  if (norm.includes('02') || norm === 'U2') return '#f87171'; // coral/red
+  if (norm.includes('03') || norm === 'U3') return '#4ade80'; // neon green
+  if (norm.includes('04') || norm === 'U4') return '#a78bfa'; // purple
+  if (norm.includes('05') || norm === 'U5') return '#38bdf8'; // sky cyan
+  return USER_COLORS[idx % USER_COLORS.length];
+}
+
+function getUserShortLabel(userId: string): string {
+  const norm = userId.toUpperCase().replace('_', '-');
+  if (norm.startsWith('USER-')) return norm.replace('USER-', 'U');
+  if (norm.startsWith('USER')) return norm.replace('USER', 'U');
+  return norm.slice(0, 4);
+}
+
+function createUserMarkerIcon(heading: number, color: string, label: string, isSelected = false): L.DivIcon {
+  const glow = isSelected ? `box-shadow: 0 0 14px 4px ${color}, 0 0 28px 8px ${color}66; border: 2.5px solid #ffffff;` : `border: 2px solid ${color};`;
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="position:relative; width:44px; height:44px;">
+        <div style="
+          position:absolute; top:50%; left:50%;
+          transform:translate(-50%,-50%) rotate(${heading}deg);
+          width:24px; height:24px;
+          display:flex; align-items:center; justify-content:center;
+          filter: drop-shadow(0 0 6px ${color}99);
+        ">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+            <circle cx="12" cy="12" r="11" fill="#0a0a1a" style="${glow}"/>
+            <path d="M12 5l5 12H7L12 5z" fill="${color}"/>
+          </svg>
+        </div>
+        <div style="
+          position:absolute; bottom:-2px; left:50%;
+          transform:translateX(-50%);
+          background:rgba(5,10,20,0.92);
+          color:${color};
+          font-size:8px; font-weight:700;
+          font-family:'JetBrains Mono',monospace;
+          padding:1px 4px; border-radius:3px;
+          border:1px solid ${isSelected ? color : color + '55'};
+          white-space:nowrap;
+          text-shadow: 0 0 4px ${color}88;
+        ">${label}</div>
+      </div>`,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+  });
+}
+
 function createCenterIcon(): L.DivIcon {
   return L.divIcon({
     className: '',
@@ -148,29 +215,63 @@ function beamOpacity(status: TowerStatus): number {
 
 interface SimulationMapProps {
   data: SimulationData | null;
+  multiData?: MultiUserUpdate | null;
+  selectedUser?: string;
 }
 
-export default function SimulationMap({ data }: SimulationMapProps) {
+export default function SimulationMap({ data, multiData, selectedUser }: SimulationMapProps) {
   // Keep marker references for live updates
   const towerMarkerRefs  = useRef<Record<string, L.Marker>>({});
   const vehicleMarkerRef = useRef<L.Marker | null>(null);
 
-  // Breadcrumb trail: ring-buffer of [lat, lon] positions
+  // Breadcrumb trail: ring-buffer of [lat, lon] positions (single-user mode)
   const [trail, setTrail] = useState<[number, number][]>([]);
 
-  // Update vehicle icon and trail when position changes
+  // Per-user trails for multi-user mode
+  const [userTrails, setUserTrails] = useState<Record<string, [number, number][]>>({});
+
+  const multiUsers: MultiUserState[] = Array.isArray(multiData?.users)
+    ? multiData.users
+    : Object.values(multiData?.users ?? {});
+
+  // Derive what towers to display
+  const activeUser = multiUsers.find((u) => u.user_id === selectedUser);
+  const displayTowers: Record<string, Tower> = {};
+
+  const baseTowers = (activeUser?.towers?.all_towers) ??
+    (multiData?.towers?.all_towers) ??
+    data?.towers?.all_towers ??
+    {};
+
+  for (const [tid, tower] of Object.entries(baseTowers)) {
+    displayTowers[tid] = { ...tower };
+  }
+
+  // If ALL USERS view or no specific user selected, mark towers beamformed by ANY user
+  if (!activeUser && multiUsers.length > 0) {
+    for (const u of multiUsers) {
+      if (u.towers?.active_tower) {
+        const atId = u.towers.active_tower.id;
+        if (displayTowers[atId]) {
+          displayTowers[atId].status = 'BEAMFORMED_ACTIVE';
+          displayTowers[atId].allocated_power_dbm = 30.0;
+        }
+      }
+    }
+  }
+
+  // Update vehicle icon and trail when position changes (single-user mode)
   useEffect(() => {
     if (!data || !vehicleMarkerRef.current) return;
     vehicleMarkerRef.current.setIcon(createVehicleIcon(data.vehicle.heading));
     vehicleMarkerRef.current.setLatLng([data.vehicle.lat, data.vehicle.lon]);
-    // Append to breadcrumb trail
     setTrail((prev) => {
       const next: [number, number][] = [...prev, [data.vehicle.lat, data.vehicle.lon]];
       return next.length > TRAIL_MAX ? next.slice(next.length - TRAIL_MAX) : next;
     });
   }, [data?.vehicle.lat, data?.vehicle.lon, data?.vehicle.heading]);
 
-  // Update tower icons when status changes
+  // Update tower icons when status changes (single-user mode)
   useEffect(() => {
     if (!data) return;
     Object.entries(data.towers.all_towers).forEach(([id, tower]) => {
@@ -179,7 +280,25 @@ export default function SimulationMap({ data }: SimulationMapProps) {
     });
   }, [data?.towers]);
 
-  const towers = data?.towers.all_towers ?? {};
+  // Update per-user trails in multi-user mode
+  useEffect(() => {
+    if (multiUsers.length === 0) return;
+    setUserTrails((prev) => {
+      const next: Record<string, [number, number][]> = {};
+      for (const user of multiUsers) {
+        const existing = prev[user.user_id] ?? [];
+        const lastPt = existing[existing.length - 1];
+        const newPt: [number, number] = [user.vehicle.lat, user.vehicle.lon];
+        const changed = !lastPt || lastPt[0] !== newPt[0] || lastPt[1] !== newPt[1];
+        const updated = changed ? [...existing, newPt] : existing;
+        next[user.user_id] = updated.length > TRAIL_MAX
+          ? updated.slice(updated.length - TRAIL_MAX)
+          : updated;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [multiData]);
 
   return (
     <MapContainer
@@ -204,7 +323,7 @@ export default function SimulationMap({ data }: SimulationMapProps) {
         zIndex={2}
       />
 
-      {/* Vehicle breadcrumb trail */}
+      {/* Vehicle breadcrumb trail (single-user mode) */}
       {trail.length > 1 && (
         <Polyline
           positions={trail}
@@ -225,7 +344,7 @@ export default function SimulationMap({ data }: SimulationMapProps) {
       </Marker>
 
       {/* Beamforming lines: centre → each tower */}
-      {Object.values(towers).map((tower) => (
+      {Object.values(displayTowers).map((tower) => (
         <Polyline
           key={`beam-${tower.id}`}
           positions={[
@@ -240,7 +359,7 @@ export default function SimulationMap({ data }: SimulationMapProps) {
       ))}
 
       {/* Tower markers */}
-      {Object.values(towers).map((tower) => (
+      {Object.values(displayTowers).map((tower) => (
         <Marker
           key={tower.id}
           position={[tower.coordinates.lat, tower.coordinates.lon]}
@@ -263,7 +382,7 @@ export default function SimulationMap({ data }: SimulationMapProps) {
       ))}
 
       {/* Coverage radius circles */}
-      {Object.values(towers).map((tower) => (
+      {Object.values(displayTowers).map((tower) => (
         <CircleMarker
           key={`radius-${tower.id}`}
           center={[tower.coordinates.lat, tower.coordinates.lon]}
@@ -278,8 +397,8 @@ export default function SimulationMap({ data }: SimulationMapProps) {
         />
       ))}
 
-      {/* Vehicle marker */}
-      {data && (
+      {/* Single-user vehicle marker (demo / live mode — only when no multiData) */}
+      {data && !multiData && (
         <Marker
           position={[data.vehicle.lat, data.vehicle.lon]}
           icon={createVehicleIcon(data.vehicle.heading)}
@@ -295,10 +414,69 @@ export default function SimulationMap({ data }: SimulationMapProps) {
         </Marker>
       )}
 
+      {/* Multi-user vehicle markers — ALL five always visible */}
+      {multiUsers.map((user, idx) => {
+        const color = getUserColor(user.user_id, idx);
+        const shortId = getUserShortLabel(user.user_id);
+        const isSelected = selectedUser === user.user_id;
+        const userTrail = userTrails[user.user_id];
+        const activeTower = user.towers?.active_tower ?? null;
+        const activeTowerId = activeTower?.id ?? null;
+        const totalHandovers = user.towers?.stats?.total_handovers ?? 0;
+        return (
+          <React.Fragment key={user.user_id}>
+            {/* Per-user breadcrumb trail */}
+            {userTrail && userTrail.length > 1 && (
+              <Polyline
+                positions={userTrail}
+                color={color}
+                weight={isSelected ? 3 : 2}
+                opacity={isSelected ? 0.75 : 0.45}
+                dashArray="4 5"
+              />
+            )}
+            {/* Direct 5G beamforming line from user to their active tower */}
+            {activeTower && activeTower.coordinates && (
+              <Polyline
+                positions={[
+                  [user.vehicle.lat, user.vehicle.lon],
+                  [activeTower.coordinates.lat, activeTower.coordinates.lon],
+                ]}
+                color={color}
+                weight={isSelected ? 3.5 : 2.5}
+                opacity={0.8}
+              />
+            )}
+            {/* Per-user vehicle marker */}
+            <Marker
+              position={[user.vehicle.lat, user.vehicle.lon]}
+              icon={createUserMarkerIcon(user.vehicle.heading, color, shortId, isSelected)}
+            >
+              <Tooltip direction="right" offset={[22, 0]} opacity={0.95}>
+                <div style={{ fontSize: 11, fontFamily: 'monospace', lineHeight: 1.6, color: '#e2e8f0' }}>
+                  <div style={{ fontWeight: 700, color }}>{user.user_id.toUpperCase()}</div>
+                  <div>Dir: {user.direction} · {user.route_name}</div>
+                  <div>Speed: {user.vehicle.speed_kmh} km/h · {user.vehicle.heading}°</div>
+                  <div>Status: {user.running ? '▶ MOVING' : '⏸ STOPPED'}</div>
+                  {activeTowerId && (
+                    <div style={{ color: '#00ff88', fontWeight: 700 }}>Tower: {activeTowerId} (ACTIVE)</div>
+                  )}
+                  {user.prediction.predicted_path && (
+                    <div>Pred: {user.prediction.predicted_path} ({(user.prediction.confidence * 100).toFixed(0)}%)</div>
+                  )}
+                  <div>Handovers: {totalHandovers} · Ping-Pong: {user.towers?.stats?.ping_pong_events ?? 0}</div>
+                  <div>Latency: {user.network?.latency_ms?.toFixed(1) ?? '—'} ms · {user.network?.throughput_mbps?.toFixed(0) ?? '—'} Mbps</div>
+                </div>
+              </Tooltip>
+            </Marker>
+          </React.Fragment>
+        );
+      })}
+
       {/* 50m handover zone */}
       <CircleMarker
         center={[CENTER_LAT, CENTER_LON]}
-        radius={data ? Math.min(40, 40) : 40}
+        radius={40}
         pathOptions={{
           color: '#f59e0b',
           fillColor: '#f59e0b',

@@ -12,6 +12,7 @@ export interface TelemetryPayload {
   heading: number;
   speed: number;
   source?: 'desktop' | 'mobile';
+  user_id?: string;
 }
 
 interface UseTelemetryReturn {

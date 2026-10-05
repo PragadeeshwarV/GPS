@@ -79,6 +79,7 @@ export default function MobilePage() {
   const [orientation, setOrientation] = useState<OrientationState>({ heading: null, available: false });
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [tickCount, setTickCount] = useState(0);
+  const [mobileUserId, setMobileUserId] = useState<string>('USER-01');
   const [wsError, setWsError] = useState<string | null>(null);
   const [httpsWarning] = useState(!isHttps());
 
@@ -215,6 +216,7 @@ export default function MobilePage() {
             heading: Math.round(heading),
             speed: speed_kmh ?? 0,
             source: 'mobile',
+            user_id: mobileUserId,
           }));
         }
       },
@@ -232,7 +234,7 @@ export default function MobilePage() {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 500 }
     );
-  }, [orientation.heading, checkPermission]);
+  }, [orientation.heading, checkPermission, mobileUserId]);
 
   const stopGeo = useCallback(() => {
     if (geoWatchRef.current != null) {
@@ -353,7 +355,37 @@ export default function MobilePage() {
       )}
 
       {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: 28 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: 24 }}>
+
+        {/* Device User ID selection */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em' }}>
+            TRANSMITTING AS VEHICLE:
+          </span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['USER-01', 'USER-02', 'USER-03', 'USER-04', 'USER-05'].map((uid) => (
+              <button
+                key={uid}
+                onClick={() => setMobileUserId(uid)}
+                disabled={isTransmitting}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: mobileUserId === uid ? '1px solid #00ff88' : '1px solid rgba(255,255,255,0.1)',
+                  background: mobileUserId === uid ? 'rgba(0,255,136,0.15)' : 'rgba(15,23,42,0.6)',
+                  color: mobileUserId === uid ? '#00ff88' : '#64748b',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  cursor: isTransmitting ? 'not-allowed' : 'pointer',
+                  opacity: isTransmitting && mobileUserId !== uid ? 0.4 : 1,
+                }}
+              >
+                {uid}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Big CTA button */}
         <div style={{ textAlign: 'center' }}>

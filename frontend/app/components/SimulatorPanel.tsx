@@ -26,7 +26,7 @@ interface RouteConfig {
 // Nandanam / Anna Salai / Dr Radhakrishnan Salai intersection, Chennai.
 // Center intersection: 13.0827°N, 80.2707°E
 
-export type RouteName = 'ROUTE_A' | 'ROUTE_B' | 'ROUTE_C' | 'ROUTE_D';
+export type RouteName = 'ROUTE_A' | 'ROUTE_B' | 'ROUTE_C' | 'ROUTE_D' | 'ROUTE_E';
 
 const ROUTES: Record<RouteName, RouteConfig> = {
   ROUTE_A: {
@@ -350,6 +350,35 @@ const ROUTES: Record<RouteName, RouteConfig> = {
       [13.088001, 80.265016]
     ],
   },
+  ROUTE_E: {
+    label: 'ROUTE_E',
+    description: 'South-West to North-East (Heading ~45°)',
+    waypoints: [
+      [13.076000, 80.264000],
+      [13.076600, 80.264600],
+      [13.077200, 80.265200],
+      [13.077800, 80.265800],
+      [13.078400, 80.266500],
+      [13.079000, 80.267100],
+      [13.079500, 80.267700],
+      [13.080000, 80.268200],
+      [13.080500, 80.268800],
+      [13.081000, 80.269300],
+      [13.081500, 80.269700],
+      [13.082000, 80.270200],
+      [13.082400, 80.270500],
+      [13.082697, 80.270678],
+      [13.083100, 80.271000],
+      [13.083500, 80.271400],
+      [13.084100, 80.272000],
+      [13.084800, 80.272700],
+      [13.085600, 80.273500],
+      [13.086500, 80.274500],
+      [13.087500, 80.275500],
+      [13.088500, 80.276600],
+      [13.089500, 80.277800],
+    ],
+  },
 };
 
 // ── Geometry helpers ─────────────────────────────────────────────────────────
@@ -429,6 +458,7 @@ export default function SimulatorPanel({ send, isConnected }: SimulatorPanelProp
   const [isPlaying, setIsPlaying]         = useState(false);
   const [tick, setTick]                   = useState(0);
   const [dropdownOpen, setDropdownOpen]   = useState(false);
+  const [simUser, setSimUser]             = useState<string>('USER-01');
 
   const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const walkerRef    = useRef<WalkerState>({ lat: 0, lon: 0, heading: 0, segIdx: 0, done: false });
@@ -463,7 +493,7 @@ export default function SimulatorPanel({ send, isConnected }: SimulatorPanelProp
     intervalRef.current = setInterval(() => {
       const { lat, lon, heading } = walkerRef.current;
 
-      send({ lat, lon, heading: Math.round(heading), speed: SPEED_KMH, source: 'desktop' });
+      send({ lat, lon, heading: Math.round(heading), speed: SPEED_KMH, source: 'desktop', user_id: simUser });
       localTick++;
       setTick(localTick);
 
@@ -484,7 +514,7 @@ export default function SimulatorPanel({ send, isConnected }: SimulatorPanelProp
         walkerRef.current = { lat: sLat, lon: sLon, heading: initH, segIdx: 0, done: false };
       }
     }, TICK_INTERVAL_MS);
-  }, [isConnected, selectedRoute, send]);
+  }, [isConnected, selectedRoute, send, simUser]);
 
   // Stop sim when route changes mid-play
   useEffect(() => {
@@ -503,6 +533,35 @@ export default function SimulatorPanel({ send, isConnected }: SimulatorPanelProp
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Target User Selector */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ fontSize: 9, color: '#64748b', fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          Simulated Vehicle:
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {['USER-01', 'USER-02', 'USER-03', 'USER-04', 'USER-05'].map((uid) => (
+            <button
+              key={uid}
+              onClick={() => setSimUser(uid)}
+              style={{
+                flex: 1,
+                padding: '4px 0',
+                fontSize: 9,
+                fontWeight: 600,
+                fontFamily: 'JetBrains Mono, monospace',
+                borderRadius: 4,
+                border: simUser === uid ? '1px solid #38bdf8' : '1px solid rgba(56,189,248,0.15)',
+                background: simUser === uid ? 'rgba(56,189,248,0.2)' : 'rgba(15,23,42,0.6)',
+                color: simUser === uid ? '#38bdf8' : '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              {uid.replace('USER-', 'U')}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Route selector */}
       <div style={{ position: 'relative' }}>

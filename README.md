@@ -20,7 +20,9 @@ The system is composed of two main parts:
 2. Create a virtual environment: `python -m venv venv`
 3. Activate the virtual environment.
 4. Install dependencies: `pip install -r requirements.txt`
-5. Run the server: `uvicorn app.main:app --reload`
+5. Run the server using the interactive startup script (which allows you to choose a tower):
+   `python start_backend.py`
+   Alternatively, run directly: `uvicorn app.main:app --reload`
 
 ### Frontend
 1. Navigate to the `frontend` directory.

@@ -117,6 +117,7 @@ async def websocket_telemetry(websocket: WebSocket):
                 lon = float(data['lon'])
                 heading = float(data['heading'])
                 speed = float(data['speed'])
+                user_id = str(data.get('user_id', 'USER-01'))
             except (json.JSONDecodeError, KeyError, ValueError, TypeError):
                 continue   # silently drop malformed frames
 
@@ -133,6 +134,7 @@ async def websocket_telemetry(websocket: WebSocket):
                 'tick': _tick,
                 'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
                 'source': data.get('source', 'unknown'),   # 'desktop' | 'mobile'
+                'user_id': user_id,
                 'vehicle': {
                     'lat': round(lat, 7),
                     'lon': round(lon, 7),

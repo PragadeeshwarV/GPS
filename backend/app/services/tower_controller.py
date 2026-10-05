@@ -7,6 +7,7 @@ Intersection center: Lat 13.0827, Lon 80.2707
 Towers are positioned ~150m along each of the 8 exit paths.
 """
 
+import os
 from dataclasses import dataclass, field, asdict
 from typing import Literal, Dict, Optional
 
@@ -198,6 +199,22 @@ class TowerController:
         # Current handover state
         self.handover_active: bool = False
         self.active_tower_id: Optional[str] = None
+        
+        self.locked_tower = os.environ.get("SELECTED_TOWER", "AUTO")
+        if self.locked_tower != "AUTO" and self.locked_tower in self.towers:
+            self._trigger_handover_override(self.locked_tower)
+
+    def _trigger_handover_override(self, target_tower_id: str):
+        for tid, tower in self.towers.items():
+            if tid == target_tower_id:
+                tower.status = 'BEAMFORMED_ACTIVE'
+                tower.allocated_power_dbm = _BEAMFORMED_POWER_DBM
+            else:
+                tower.status = 'SUPPRESSED'
+                tower.allocated_power_dbm = _SUPPRESSED_POWER_DBM
+        self.handover_active = True
+        self.active_tower_id = target_tower_id
+        self._last_active_tower = target_tower_id
 
     # ── State transitions ────────────────────────────────────────────────────
 
@@ -258,6 +275,9 @@ class TowerController:
         Triggers handover when confidence > 0.8, otherwise resets to default.
         Returns True if state changed.
         """
+        if getattr(self, 'locked_tower', 'AUTO') != 'AUTO':
+            return False
+
         if predicted_path is not None and confidence > 0.8:
             return self.trigger_handover(predicted_path, confidence)
         elif self.handover_active:

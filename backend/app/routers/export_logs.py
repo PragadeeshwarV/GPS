@@ -66,6 +66,20 @@ def _build_export_payload() -> dict:
             'stats': tel_snapshot['stats'],
         },
         'tower_states': tower_rows,
+        'multi_users': [
+            {
+                'user_id': s.user_id,
+                'route': s.route_name,
+                'tick': s.tick,
+                'lat': round(s.lat, 7),
+                'lon': round(s.lon, 7),
+                'heading': round(s.heading, 1),
+                'active_tower': s.controller.active_tower_id if s.controller else None,
+                'handover_count': s.controller.handover_count if s.controller else 0,
+                'ping_pong_events': s.controller.ping_pong_events if s.controller else 0,
+            }
+            for s in __import__('app.routers.multi_user', fromlist=['_multi_users'])._multi_users.values()
+        ] if hasattr(__import__('app.routers.multi_user', fromlist=['_multi_users']), '_multi_users') else [],
     }
 
 

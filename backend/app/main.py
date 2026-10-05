@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import simulation, telemetry, export_logs
+from app.routers import simulation, telemetry, export_logs, multi_user
 
 app = FastAPI(
     title="Predictive 5G Handover System API",
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(simulation.router, tags=["Simulation"])
 app.include_router(telemetry.router, tags=["Telemetry"])
 app.include_router(export_logs.router, tags=["Export"])
+app.include_router(multi_user.router, tags=["MultiUser"])
 
 
 @app.get("/")

@@ -414,6 +414,32 @@ ROAD_ROUTES: List[List[Waypoint]] = [
         (13.087762, 80.265118),
         (13.088001, 80.265016)
     ],
+    # ROUTE_E - South-West to North-East (approaches center with heading ~45° -> triggers PATH_B / TOWER_B)
+    [
+        (13.076000, 80.264000),
+        (13.076600, 80.264600),
+        (13.077200, 80.265200),
+        (13.077800, 80.265800),
+        (13.078400, 80.266500),
+        (13.079000, 80.267100),
+        (13.079500, 80.267700),
+        (13.080000, 80.268200),
+        (13.080500, 80.268800),
+        (13.081000, 80.269300),
+        (13.081500, 80.269700),
+        (13.082000, 80.270200),
+        (13.082400, 80.270500),
+        (13.082697, 80.270678),
+        (13.083100, 80.271000),
+        (13.083500, 80.271400),
+        (13.084100, 80.272000),
+        (13.084800, 80.272700),
+        (13.085600, 80.273500),
+        (13.086500, 80.274500),
+        (13.087500, 80.275500),
+        (13.088500, 80.276600),
+        (13.089500, 80.277800),
+    ],
 ]
 
 
@@ -562,6 +588,18 @@ async def _run_simulation():
             'towers':  tower_snapshot,
             'network': net,
         }
+
+        # Multi-user data enrichment for dual-endpoint compatibility
+        try:
+            from app.routers.multi_user import _multi_users, _manager as multi_mgr, _tick_user
+            if not multi_mgr.active:
+                for u_sess in list(_multi_users.values()):
+                    _tick_user(u_sess)
+            u_list = [s.to_dict() for s in _multi_users.values()]
+            payload['users'] = u_list
+            payload['users_map'] = {s.user_id: u for s, u in zip(_multi_users.values(), u_list)}
+        except Exception:
+            pass
 
         await manager.broadcast(payload)
 
