@@ -36,6 +36,7 @@ ROUTES = {
     'ROUTE_B': [(80.2780, 13.0840), (80.2707, 13.0827), (80.2600, 13.0800)],  # East to West
     'ROUTE_C': [(80.2650, 13.0880), (80.2707, 13.0827), (80.2750, 13.0780)],  # North to South (approx)
     'ROUTE_D': [(80.2750, 13.0780), (80.2707, 13.0827), (80.2650, 13.0880)],  # South to North (approx)
+    'ROUTE_E': [(80.2640, 13.0760), (80.2707, 13.0827), (80.2778, 13.0895)],  # South-West to North-East
 }
 
 print("Fetching and parsing routes...")

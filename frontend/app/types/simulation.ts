@@ -78,6 +78,7 @@ export interface UserTowerSnapshot {
 
 export interface MultiUserState {
   user_id: string;
+  phone_number?: string;
   route_name: string;
   direction: string;
   running: boolean;

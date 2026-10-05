@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Tooltip, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -145,8 +145,11 @@ function getUserShortLabel(userId: string): string {
   return norm.slice(0, 4);
 }
 
-function createUserMarkerIcon(heading: number, color: string, label: string, isSelected = false): L.DivIcon {
+function createUserMarkerIcon(heading: number, color: string, label: string, phone: string | undefined, zoom: number, isSelected = false): L.DivIcon {
   const glow = isSelected ? `box-shadow: 0 0 14px 4px ${color}, 0 0 28px 8px ${color}66; border: 2.5px solid #ffffff;` : `border: 2px solid ${color};`;
+  
+  const displayLabel = zoom > 18 && phone ? `${label} • ${phone}` : label;
+  
   return L.divIcon({
     className: '',
     html: `
@@ -174,7 +177,7 @@ function createUserMarkerIcon(heading: number, color: string, label: string, isS
           border:1px solid ${isSelected ? color : color + '55'};
           white-space:nowrap;
           text-shadow: 0 0 4px ${color}88;
-        ">${label}</div>
+        ">${displayLabel}</div>
       </div>`,
     iconSize: [44, 44],
     iconAnchor: [22, 22],
@@ -219,6 +222,13 @@ interface SimulationMapProps {
   selectedUser?: string;
 }
 
+function ZoomListener({ onZoomChange }: { onZoomChange: (z: number) => void }) {
+  useMapEvents({
+    zoomend: (e) => onZoomChange(e.target.getZoom()),
+  });
+  return null;
+}
+
 export default function SimulationMap({ data, multiData, selectedUser }: SimulationMapProps) {
   // Keep marker references for live updates
   const towerMarkerRefs  = useRef<Record<string, L.Marker>>({});
@@ -229,6 +239,8 @@ export default function SimulationMap({ data, multiData, selectedUser }: Simulat
 
   // Per-user trails for multi-user mode
   const [userTrails, setUserTrails] = useState<Record<string, [number, number][]>>({});
+
+  const [zoomLevel, setZoomLevel] = useState(18);
 
   const multiUsers: MultiUserState[] = Array.isArray(multiData?.users)
     ? multiData.users
@@ -307,6 +319,7 @@ export default function SimulationMap({ data, multiData, selectedUser }: Simulat
       style={{ width: '100%', height: '100%', background: '#0c1220' }}
       zoomControl={false}
     >
+      <ZoomListener onZoomChange={setZoomLevel} />
       {/* Satellite base layer */}
       <TileLayer
         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -450,11 +463,12 @@ export default function SimulationMap({ data, multiData, selectedUser }: Simulat
             {/* Per-user vehicle marker */}
             <Marker
               position={[user.vehicle.lat, user.vehicle.lon]}
-              icon={createUserMarkerIcon(user.vehicle.heading, color, shortId, isSelected)}
+              icon={createUserMarkerIcon(user.vehicle.heading, color, shortId, user.phone_number, zoomLevel, isSelected)}
             >
               <Tooltip direction="right" offset={[22, 0]} opacity={0.95}>
                 <div style={{ fontSize: 11, fontFamily: 'monospace', lineHeight: 1.6, color: '#e2e8f0' }}>
                   <div style={{ fontWeight: 700, color }}>{user.user_id.toUpperCase()}</div>
+                  {user.phone_number && <div style={{ color: '#a1a1aa' }}>Tel: {user.phone_number}</div>}
                   <div>Dir: {user.direction} · {user.route_name}</div>
                   <div>Speed: {user.vehicle.speed_kmh} km/h · {user.vehicle.heading}°</div>
                   <div>Status: {user.running ? '▶ MOVING' : '⏸ STOPPED'}</div>

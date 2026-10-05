@@ -76,6 +76,7 @@ class UserSession:
 
     user_id: str
     route_name: str
+    phone_number: str = ''
 
     # Simulation control
     running: bool = False
@@ -133,6 +134,7 @@ class UserSession:
 
         return {
             'user_id': self.user_id,
+            'phone_number': self.phone_number,
             'route_name': self.route_name,
             'direction': ROUTE_DIRECTION.get(self.route_name, 'CUSTOM'),
             'running': self.running,
@@ -365,15 +367,15 @@ async def _run_loop() -> None:
 
 def _seed_users() -> None:
     configs = [
-        ('USER-01', 'ROUTE_A',  0),  # West to East
-        ('USER-02', 'ROUTE_B',  6),  # East to West
-        ('USER-03', 'ROUTE_C', 14),  # North to South
-        ('USER-04', 'ROUTE_D',  4),  # South to North
-        ('USER-05', 'ROUTE_E',  2),  # South-West to North-East
+        ('USER-01', 'ROUTE_A',  0, '+1 (555) 010-0001'),  # West to East
+        ('USER-02', 'ROUTE_B',  6, '+1 (555) 010-0002'),  # East to West
+        ('USER-03', 'ROUTE_C', 14, '+1 (555) 010-0003'),  # North to South
+        ('USER-04', 'ROUTE_D',  4, '+1 (555) 010-0004'),  # South to North
+        ('USER-05', 'ROUTE_E',  2, '+1 (555) 010-0005'),  # South-West to North-East
     ]
-    for uid, route, seg_offset in configs:
+    for uid, route, seg_offset, phone in configs:
         if uid not in _multi_users:
-            session = UserSession(user_id=uid, route_name=route)
+            session = UserSession(user_id=uid, route_name=route, phone_number=phone)
             _init_walker(session, start_seg=seg_offset)
             session.running = True
             _multi_users[uid] = session
